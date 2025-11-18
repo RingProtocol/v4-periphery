@@ -28,8 +28,8 @@ contract FewUSDTHook is BaseHook, DeltaResolver, ReentrancyGuard {
     using SafeCast for uint256;
     
     /// @notice Custom errors for better gas efficiency and clarity
-    error WrapFailed();
-    error UnwrapFailed();
+    error WrapFailed(uint256 expectedAmount, uint256 actualAmount);
+    error UnwrapFailed(uint256 expectedAmount, uint256 actualAmount);
     error InvalidAddress();
     
     /// @notice The fewUSDT contract used for wrapping/unwrapping operations
@@ -159,7 +159,7 @@ contract FewUSDTHook is BaseHook, DeltaResolver, ReentrancyGuard {
         if (balance < underlyingAmount) revert InsufficientBalance();
         
         uint256 wrappedAmount = fewUSDT.wrap(underlyingAmount);
-        if (wrappedAmount == 0) revert WrapFailed();
+        if (wrappedAmount != underlyingAmount) revert WrapFailed(underlyingAmount, wrappedAmount);
         
         return wrappedAmount;
     }
@@ -174,7 +174,7 @@ contract FewUSDTHook is BaseHook, DeltaResolver, ReentrancyGuard {
         if (balance < wrapperAmount) revert InsufficientBalance();
         
         uint256 unwrappedAmount = fewUSDT.unwrap(wrapperAmount);
-        if (unwrappedAmount == 0) revert UnwrapFailed();
+        if (unwrappedAmount != wrapperAmount) revert UnwrapFailed(wrapperAmount, unwrappedAmount);
         
         return unwrappedAmount;
     }

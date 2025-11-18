@@ -28,13 +28,13 @@ contract FewETHHook is BaseHook, DeltaResolver, ReentrancyGuard {
     
     /// @notice Custom errors for better gas efficiency and clarity
     error InvalidAddress();
-    error WrapFailed();
-    error UnwrapFailed();
+    error WrapFailed(uint256 expectedAmount, uint256 actualAmount);
+    error UnwrapFailed(uint256 expectedAmount, uint256 actualAmount);
 
     /// @notice The WETH9 contract
-    WETH public immutable weth;
+    WETH internal immutable weth;
     /// @notice The fwWETH contract used for wrapping/unwrapping operations
-    IFewWrappedToken public immutable fwWETH;
+    IFewWrappedToken internal immutable fwWETH;
 
     /// @notice The wrapped token currency (fwWETH)
     Currency public immutable wrapperCurrency;
@@ -45,20 +45,20 @@ contract FewETHHook is BaseHook, DeltaResolver, ReentrancyGuard {
 
     /// @notice Creates a new fwWETH wrapper hook
     /// @param _manager The Uniswap V4 pool manager
-    /// @param _weth The WETH9 contract address
+    /// @param _weth The WETH9 contract
     /// @param _fwWETH The fwWETH contract address
     /// @dev Initializes with fwWETH as wrapper token and ETH as underlying token
     /// @dev Sets up approval for WETH to fwWETH wrapping operations
     /// @dev Determines wrapping direction based on token address ordering
-    constructor(IPoolManager _manager, address payable _weth, IFewWrappedToken _fwWETH)
+    constructor(IPoolManager _manager, WETH _weth, IFewWrappedToken _fwWETH)
         BaseHook(_manager)
     {
         // Input validation
         if (address(_manager) == address(0)) revert InvalidAddress();
-        if (_weth == address(0)) revert InvalidAddress();
+        if (address(_weth) == address(0)) revert InvalidAddress();
         if (address(_fwWETH) == address(0)) revert InvalidAddress();
         
-        weth = WETH(payable(_weth));
+        weth = _weth;
         fwWETH = _fwWETH;
         wrapperCurrency = Currency.wrap(address(_fwWETH));
         underlyingCurrency = CurrencyLibrary.ADDRESS_ZERO;
@@ -162,7 +162,7 @@ contract FewETHHook is BaseHook, DeltaResolver, ReentrancyGuard {
         
         weth.deposit{value: underlyingAmount}();
         uint256 wrappedAmount = fwWETH.wrap(underlyingAmount);
-        if (wrappedAmount == 0) revert WrapFailed();
+        if (wrappedAmount != underlyingAmount) revert WrapFailed(underlyingAmount, wrappedAmount);
         
         return wrappedAmount;
     }
@@ -174,9 +174,10 @@ contract FewETHHook is BaseHook, DeltaResolver, ReentrancyGuard {
     /// @return Amount of ETH received
     function _withdraw(uint256 wrapperAmount) internal nonReentrant returns (uint256) {
         // Check if contract has sufficient fwWETH balance
-        if (IERC20(address(fwWETH)).balanceOf(address(this)) < wrapperAmount) revert InsufficientBalance();
+        if (fwWETH.balanceOf(address(this)) < wrapperAmount) revert InsufficientBalance();
         
-        fwWETH.unwrap(wrapperAmount);
+        uint256 unwrappedAmount = fwWETH.unwrap(wrapperAmount);
+        if (unwrappedAmount != wrapperAmount) revert UnwrapFailed(wrapperAmount, unwrappedAmount);
         weth.withdraw(wrapperAmount);
         
         return wrapperAmount;
@@ -192,6 +193,6 @@ contract FewETHHook is BaseHook, DeltaResolver, ReentrancyGuard {
         return underlyingAmount;
     }
 
-    /// @notice Required to receive ETH
+    /// @notice Required to receive ETH from WETH.withdraw()
     receive() external payable {}
 }

@@ -27,8 +27,8 @@ contract FewTokenHook is BaseHook, DeltaResolver, ReentrancyGuard {
     
     /// @notice Custom errors for better gas efficiency and clarity
     error InvalidAddress();
-    error WrapFailed();
-    error UnwrapFailed();
+    error WrapFailed(uint256 expectedAmount, uint256 actualAmount);
+    error UnwrapFailed(uint256 expectedAmount, uint256 actualAmount);
 
     /// @notice The fewToken contract used for wrapping/unwrapping operations
     IFewWrappedToken public immutable fewToken;
@@ -156,7 +156,7 @@ contract FewTokenHook is BaseHook, DeltaResolver, ReentrancyGuard {
         if (balance < underlyingAmount) revert InsufficientBalance();
         
         uint256 wrappedAmount = fewToken.wrap(underlyingAmount);
-        if (wrappedAmount == 0) revert WrapFailed();
+        if (wrappedAmount != underlyingAmount) revert WrapFailed(underlyingAmount, wrappedAmount);
         
         return wrappedAmount;
     }
@@ -172,7 +172,7 @@ contract FewTokenHook is BaseHook, DeltaResolver, ReentrancyGuard {
         if (balance < wrapperAmount) revert InsufficientBalance();
         
         uint256 unwrappedAmount = fewToken.unwrap(wrapperAmount);
-        if (unwrappedAmount == 0) revert UnwrapFailed();
+        if (unwrappedAmount != wrapperAmount) revert UnwrapFailed(wrapperAmount, unwrappedAmount);
         
         return unwrappedAmount;
     }
